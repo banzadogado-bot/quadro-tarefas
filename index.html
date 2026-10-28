@@ -252,6 +252,39 @@
   .modal .linha-check { display: flex; gap: 8px; align-items: center; font-weight: 600 !important; cursor: pointer; }
   .dica { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
 
+  /* ---------- relatório ---------- */
+  .campo-data { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color-scheme: light dark; }
+  .rel-resumo { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .rel-pessoa { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  .rel-pessoa .topo { display: flex; align-items: center; gap: 10px; font-weight: 700; margin-bottom: 10px; }
+  .rel-pessoa .avatar { width: 30px; height: 30px; font-size: 14px; }
+  .rel-pessoa .barra-prog { height: 6px; border-radius: 3px; background: var(--muted-bg); overflow: hidden; margin: 2px 0 10px; }
+  .rel-pessoa .barra-prog i { display: block; height: 100%; background: var(--done); }
+  .rel-pessoa dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; font-size: 13px; }
+  .rel-pessoa dt { color: var(--ink-2); }
+  .rel-pessoa dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .rel-pessoa dd.late { color: var(--late); }
+  .demoradas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 0; max-width: 760px; }
+  .demoradas li { display: flex; gap: 12px; padding: 8px 14px; align-items: center; font-size: 14px; }
+  .demoradas li + li { border-top: 1px solid var(--line); }
+  .demoradas .t { flex: 1; }
+  .demoradas .d { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .demoradas ol { list-style: none; margin: 0; padding: 0; }
+  table.rel-tab { width: 100%; table-layout: fixed; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); }
+  .rel-tab th, .rel-tab td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 13.5px; vertical-align: top; word-break: break-word; }
+  .rel-tab th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); background: var(--surface-2); }
+  .rel-tab td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rel-tab .sub { color: var(--ink-3); font-size: 12px; }
+  .rel-tab .mot { font-size: 12.5px; color: var(--ink-2); }
+  .rel-tab .mot + .mot { margin-top: 4px; }
+  .sit { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+  .sit.concluida { background: var(--done-bg); color: var(--done); }
+  .sit.atrasada { background: var(--late); color: #fff; }
+  .sit.nao_concluida { background: var(--late-bg); color: var(--late); }
+  .sit.no_prazo { background: var(--window-bg); color: var(--window); }
+  .sit.adiada, .sit.removida { background: var(--muted-bg); color: var(--ink-2); }
+  .sit-extra { display: block; font-size: 12px; color: var(--late); margin-top: 3px; font-weight: 600; }
+
   @media (max-width: 900px) {
     .abas { margin-left: 0; }
     header.top { flex-wrap: wrap; }
@@ -270,6 +303,7 @@
   <nav class="abas hidden" id="gestor-abas" role="tablist">
     <button type="button" role="tab" data-aba="quadro" aria-selected="true">Quadro geral</button>
     <button type="button" role="tab" data-aba="fixas" aria-selected="false">Tarefas fixas</button>
+    <button type="button" role="tab" data-aba="relatorio" aria-selected="false">Relatório</button>
     <button type="button" role="tab" data-aba="equipe" aria-selected="false">Equipe e PINs</button>
   </nav>
   <div class="who hidden" id="topo-usuario">
@@ -338,6 +372,20 @@
   <div id="fixas-lista"></div>
 </main>
 
+<!-- ================= GESTOR: RELATÓRIO ================= -->
+<main id="tela-relatorio" class="pagina hidden">
+  <div class="secao-titulo">
+    <h1>Relatório do dia</h1>
+    <input type="date" id="rel-dia" aria-label="Dia do relatório" class="campo-data">
+    <button class="btn" id="btn-rel-hoje" type="button">Hoje</button>
+    <span style="flex:1"></span>
+    <button class="btn" id="btn-excel" type="button" disabled>⬇ Excel</button>
+    <button class="btn" id="btn-pdf" type="button" disabled>⬇ PDF</button>
+    <div class="ajuda">Tudo o que estava no quadro de cada um no dia: o que foi feito, quanto tempo levou, o que voltou, o que ficou para trás e por quê.</div>
+  </div>
+  <div id="rel-conteudo"></div>
+</main>
+
 <!-- ================= GESTOR: EQUIPE ================= -->
 <main id="tela-equipe" class="pagina hidden">
   <div class="secao-titulo">
@@ -381,13 +429,15 @@ const parseDia = (iso) => { const [a, m, d] = iso.split('-').map(Number); return
 const fmtDiaCurto = (iso) => { const d = parseDia(iso); return `${DIAS_CURTO[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const fmtDiaLongo = (iso) => { const d = parseDia(iso); return `${DIAS[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; };
 const fmtHora = (ts) => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-function fmtDuracao(seg) {
+// comSegundos: o cronômetro do cartão mostra segundos; relatório e exportação, não
+function fmtDuracao(seg, comSegundos = true) {
   seg = Math.max(0, Math.floor(seg));
   const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60), s = seg % 60;
   if (h) return `${h}h ${String(m).padStart(2, '0')}min`;
-  if (m) return `${m}min ${String(s).padStart(2, '0')}s`;
-  return `${s}s`;
+  if (m) return comSegundos ? `${m}min ${String(s).padStart(2, '0')}s` : `${m}min`;
+  return comSegundos || s ? `${s}s` : '0min';
 }
+const fmtTempo = (seg) => fmtDuracao(seg, false);
 const guardar = {
   ler(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   gravar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -499,7 +549,8 @@ let sessao = guardar.ler('qt_sessao');   // {token, nome, pessoa_id, gestor}
 function sair(expirou = false) {
   const tok = sessao && sessao.token;
   sessao = null; guardar.apagar('qt_sessao');
-  filtroPessoa = null; filtroFixas = null; pessoasGestor = []; tarefas = [];
+  filtroPessoa = null; filtroFixas = null; pessoasGestor = []; tarefas = []; relatorio = null;
+  const campoDia = $('#rel-dia'); if (campoDia) campoDia.value = '';
   pararAtualizacao();
   if (tok && !expirou) rpc('qt_logout', { p_token: tok }).catch(() => {});
   $('#modal-raiz').innerHTML = '';
@@ -511,7 +562,7 @@ function sair(expirou = false) {
 let pessoas = [], pessoaEscolhida = null, pin = '';
 const GESTOR = { id: 0, nome: 'Visão do gestor', gestor: true };
 function esconderTudo() {
-  for (const id of ['#tela-login', '#tela-quadro', '#tela-fixas', '#tela-equipe', '#gestor-abas', '#topo-usuario', '#gestor-resumo']) $(id).classList.add('hidden');
+  for (const id of ['#tela-login', '#tela-quadro', '#tela-fixas', '#tela-relatorio', '#tela-equipe', '#gestor-abas', '#topo-usuario', '#gestor-resumo']) $(id).classList.add('hidden');
 }
 async function mostrarLogin() {
   esconderTudo();
@@ -804,11 +855,12 @@ function marcarAba(aba) {
 $('#gestor-abas').addEventListener('click', (e) => {
   const b = e.target.closest('[data-aba]'); if (!b || !sessao || !sessao.gestor) return;
   const aba = b.dataset.aba;
-  for (const id of ['#tela-quadro', '#tela-fixas', '#tela-equipe']) $(id).classList.add('hidden');
+  for (const id of ['#tela-quadro', '#tela-fixas', '#tela-relatorio', '#tela-equipe']) $(id).classList.add('hidden');
   marcarAba(aba);
   if (aba === 'quadro') { $('#tela-quadro').classList.remove('hidden'); desenharQuadro(); carregar(); }
   if (aba === 'fixas')  { $('#tela-fixas').classList.remove('hidden'); carregarFixas(); }
   if (aba === 'equipe') { $('#tela-equipe').classList.remove('hidden'); desenharEquipe(); }
+  if (aba === 'relatorio') { $('#tela-relatorio').classList.remove('hidden'); abrirRelatorio(); }
 });
 
 /* ---------- tarefas fixas ---------- */
@@ -996,6 +1048,253 @@ $('#btn-pin-gestor').onclick = async () => {
     ler: (form) => { const v = lerCampos(form, campos); if (v.pin !== v.pin2) throw new Error('Os dois PINs não são iguais.'); return v; },
     enviar: (v) => rpc('qt_trocar_pin_gestor', { p_token: sessao.token, p_pin_novo: v.pin }),
   })) avisar('PIN do gestor trocado.');
+};
+
+/* ---------- relatório do dia ---------- */
+const SITUACAO = {
+  concluida: 'Concluída', nao_concluida: 'Não concluída', atrasada: 'Atrasada',
+  no_prazo: 'No prazo', adiada: 'Adiada', removida: 'Removida',
+};
+const MOTIVO = { adiada: 'Adiada', removida: 'Removida', observacao: 'Obs.' };
+let relatorio = null;
+const dataBR = (iso) => { if (!iso) return ''; const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
+const minutos = (seg) => Math.round((seg || 0) / 60);
+
+function textoSituacao(l) {
+  let t = SITUACAO[l.situacao] || l.situacao;
+  if (l.situacao === 'atrasada') t += ` (${l.dias_atraso} dia${l.dias_atraso > 1 ? 's' : ''})`;
+  if (l.situacao === 'no_prazo') t += ` (até ${dataBR(l.prazo).slice(0, 5)})`;
+  return t;
+}
+function textoExtra(l) {
+  if (l.situacao === 'concluida' && l.entrou_atrasada) return `Entrou atrasada (${l.dias_atraso} dia${l.dias_atraso > 1 ? 's' : ''}), saiu no dia`;
+  if (l.situacao === 'adiada' && l.entrou_atrasada) return `Já estava atrasada (${l.dias_atraso} dia${l.dias_atraso > 1 ? 's' : ''})`;
+  return '';
+}
+function textoMotivos(l) {
+  return l.motivos.map((m) => `${MOTIVO[m.tipo] || m.tipo} (${m.por}, ${fmtHora(m.em)}): ${m.texto}`);
+}
+function resumoPessoas(linhas) {
+  const nomes = [...new Set([...pessoasGestor.map((p) => p.nome), ...linhas.map((l) => l.pessoa)])];
+  return nomes.map((nome) => {
+    const ls = linhas.filter((l) => l.pessoa === nome);
+    const n = (s) => ls.filter((l) => l.situacao === s).length;
+    const validas = ls.filter((l) => l.situacao !== 'removida' && l.situacao !== 'no_prazo').length;
+    return {
+      nome, pessoa: pessoasGestor.find((p) => p.nome === nome),
+      total: ls.length, concluidas: n('concluida'), validas,
+      nao_concluidas: n('nao_concluida'), atrasadas: n('atrasada'), adiadas: n('adiada'),
+      removidas: n('removida'), no_prazo: n('no_prazo'),
+      entrou_atrasada_saiu: ls.filter((l) => l.situacao === 'concluida' && l.entrou_atrasada).length,
+      tempo: ls.reduce((a, l) => a + (l.tempo_no_dia_seg || 0), 0),
+      voltas: ls.reduce((a, l) => a + (l.voltas_no_dia || 0), 0),
+    };
+  });
+}
+
+function abrirRelatorio() {
+  const campo = $('#rel-dia');
+  if (hoje) campo.max = hoje;
+  if (!campo.value) campo.value = hoje || '';
+  if (!pessoasGestor.length) carregarPessoas();
+  carregarRelatorio();
+}
+async function carregarRelatorio() {
+  const dia = $('#rel-dia').value || null;
+  $('#btn-excel').disabled = $('#btn-pdf').disabled = true;
+  $('#rel-conteudo').innerHTML = '<div class="vazio">Carregando…</div>';
+  try {
+    relatorio = await rpc('qt_relatorio', { p_token: sessao.token, p_dia: dia });
+    if (!$('#rel-dia').value) $('#rel-dia').value = relatorio.dia;
+    desenharRelatorio();
+    $('#btn-excel').disabled = $('#btn-pdf').disabled = false;
+  } catch (e) {
+    relatorio = null;
+    $('#rel-conteudo').innerHTML = `<div class="vazio">${esc(e.message)}</div>`;
+  }
+}
+$('#rel-dia').addEventListener('change', () => { if ($('#rel-dia').value) carregarRelatorio(); });
+$('#btn-rel-hoje').onclick = () => { $('#rel-dia').value = hoje || ''; carregarRelatorio(); };
+
+function desenharRelatorio() {
+  const linhas = relatorio.linhas;
+  const res = resumoPessoas(linhas);
+  const demoradas = linhas.filter((l) => l.tempo_no_dia_seg > 0).sort((a, b) => b.tempo_no_dia_seg - a.tempo_no_dia_seg).slice(0, 5);
+  const avatar = (r) => `<span class="avatar" style="background:${r.pessoa ? corDe(r.pessoa.id) : 'var(--ink-3)'}">${esc(r.nome[0])}</span>`;
+  $('#rel-conteudo').innerHTML = `
+    <p style="color:var(--ink-2);margin:0 0 14px">${esc(fmtDiaLongo(relatorio.dia))} · gerado às ${fmtHora(relatorio.gerado_em)}</p>
+    <div class="rel-resumo">${res.map((r) => `
+      <div class="rel-pessoa" data-rel-pessoa="${esc(r.nome)}">
+        <div class="topo">${avatar(r)}${esc(r.nome)}</div>
+        <div style="font-size:13px;color:var(--ink-2)"><b style="color:var(--ink);font-size:18px">${r.concluidas}</b> de ${r.validas} concluída${r.validas === 1 ? '' : 's'}</div>
+        <div class="barra-prog"><i style="width:${r.validas ? Math.round((100 * r.concluidas) / r.validas) : 0}%"></i></div>
+        <dl>
+          <dt>Tempo em processamento</dt><dd>${fmtTempo(r.tempo)}</dd>
+          <dt>Não concluídas</dt><dd class="${r.nao_concluidas ? 'late' : ''}">${r.nao_concluidas}</dd>
+          <dt>Atrasadas</dt><dd class="${r.atrasadas ? 'late' : ''}">${r.atrasadas}</dd>
+          <dt>Entraram atrasadas e saíram</dt><dd>${r.entrou_atrasada_saiu}</dd>
+          <dt>Adiadas</dt><dd>${r.adiadas}</dd>
+          <dt>Removidas</dt><dd>${r.removidas}</dd>
+          <dt>Voltas (retrabalho)</dt><dd>${r.voltas}</dd>
+        </dl>
+      </div>`).join('')}
+    </div>
+    ${demoradas.length ? `
+    <section class="grupo">
+      <h2>Mais demoradas do dia</h2>
+      <div class="demoradas"><ol>${demoradas.map((l, i) => `
+        <li><span style="color:var(--ink-3);width:18px">${i + 1}.</span><span class="t"><b>${esc(l.titulo)}</b> <span style="color:var(--ink-3)">· ${esc(l.pessoa)}</span></span>
+            ${l.voltas_no_dia ? `<span class="tag voltas">↺ ${l.voltas_no_dia}x</span>` : ''}<span class="d">${fmtTempo(l.tempo_no_dia_seg)}</span></li>`).join('')}
+      </ol></div>
+    </section>` : ''}
+    ${res.filter((r) => r.total).map((r) => `
+    <section class="grupo" data-rel-grupo="${esc(r.nome)}">
+      <h2>${avatar(r)}${esc(r.nome)} <span style="color:var(--ink-3);font-weight:600">· ${r.total} tarefa${r.total === 1 ? '' : 's'}</span></h2>
+      <table class="rel-tab">
+        <colgroup><col style="width:24%"><col style="width:16%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:28%"></colgroup>
+        <thead><tr><th>Tarefa</th><th>Situação</th><th>Início</th><th>Fim</th><th>Tempo</th><th>Voltas</th><th>Observações e motivos</th></tr></thead>
+        <tbody>${linhas.filter((l) => l.pessoa === r.nome).map((l) => `
+          <tr data-rel-linha="${l.tarefa_id}">
+            <td><b>${esc(l.titulo)}</b><div class="sub">${l.tipo === 'fixa' ? 'Fixa' : 'Variada'}${l.horario ? ' · ' + esc(l.horario) : ''}${l.data_ref !== relatorio.dia ? ' · de ' + esc(dataBR(l.data_ref).slice(0, 5)) : ''}</div></td>
+            <td><span class="sit ${l.situacao}">${esc(textoSituacao(l))}</span>${textoExtra(l) ? `<span class="sit-extra">${esc(textoExtra(l))}</span>` : ''}</td>
+            <td class="num">${l.inicio ? fmtHora(l.inicio) : '—'}</td>
+            <td class="num">${l.conclusao ? fmtHora(l.conclusao) : '—'}</td>
+            <td class="num">${l.tempo_no_dia_seg ? fmtTempo(l.tempo_no_dia_seg) : '—'}</td>
+            <td class="num">${l.voltas_no_dia || '—'}</td>
+            <td>${textoMotivos(l).map((t) => `<div class="mot">${esc(t)}</div>`).join('') || '<span class="sub">—</span>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </section>`).join('')}
+    ${linhas.length ? '' : '<div class="vazio">Nenhuma tarefa nesse dia.</div>'}`;
+}
+
+// Bibliotecas de exportação: só carregam quando alguém clica em Excel/PDF.
+const LIBS = {
+  xlsx: ['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],
+  jspdf: ['https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'],
+  autotable: ['https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'],
+};
+const libsCarregadas = {};
+function carregarLib(nome) {
+  if (!libsCarregadas[nome]) {
+    libsCarregadas[nome] = (async () => {
+      for (const url of LIBS[nome]) {
+        try {
+          await new Promise((ok, falha) => {
+            const s = document.createElement('script');
+            s.src = url; s.async = true; s.onload = ok; s.onerror = () => { s.remove(); falha(); };
+            document.head.appendChild(s);
+          });
+          return;
+        } catch {}
+      }
+      delete libsCarregadas[nome];
+      throw new Error('Não foi possível baixar o gerador de arquivo. Verifique a internet e tente de novo.');
+    })();
+  }
+  return libsCarregadas[nome];
+}
+
+function linhasExportacao() {
+  return relatorio.linhas.map((l) => ({
+    'Pessoa': l.pessoa,
+    'Tarefa': l.titulo,
+    'Tipo': l.tipo === 'fixa' ? 'Fixa' : 'Variada',
+    'Horário': l.horario || '',
+    'Criada em': dataBR(l.data_ref),
+    'Prazo': dataBR(l.prazo),
+    'Situação': textoSituacao(l),
+    'Entrou atrasada': l.entrou_atrasada ? 'Sim' : 'Não',
+    'Dias de atraso': l.dias_atraso,
+    'Início': l.inicio ? fmtHora(l.inicio) : '',
+    'Conclusão': l.conclusao ? fmtHora(l.conclusao) : '',
+    'Tempo no dia': l.tempo_no_dia_seg ? fmtTempo(l.tempo_no_dia_seg) : '',
+    'Tempo no dia (min)': minutos(l.tempo_no_dia_seg),
+    'Tempo total (min)': minutos(l.tempo_total_seg),
+    'Voltas': l.voltas_no_dia,
+    'Observações e motivos': [textoExtra(l), ...textoMotivos(l)].filter(Boolean).join(' | '),
+  }));
+}
+function resumoExportacao() {
+  return resumoPessoas(relatorio.linhas).map((r) => ({
+    'Pessoa': r.nome,
+    'Tarefas no dia': r.total,
+    'Concluídas': r.concluidas,
+    'Não concluídas': r.nao_concluidas,
+    'Atrasadas': r.atrasadas,
+    'Entraram atrasadas e saíram': r.entrou_atrasada_saiu,
+    'Adiadas': r.adiadas,
+    'Removidas': r.removidas,
+    'No prazo (janela)': r.no_prazo,
+    'Tempo em processamento': fmtTempo(r.tempo),
+    'Tempo em processamento (min)': minutos(r.tempo),
+    'Voltas': r.voltas,
+  }));
+}
+const nomeArquivo = (ext) => `Trallo_relatorio_${relatorio.dia}.${ext}`;
+
+$('#btn-excel').onclick = async () => {
+  if (!relatorio) return;
+  const b = $('#btn-excel'); b.disabled = true;
+  try {
+    await carregarLib('xlsx');
+    const wb = XLSX.utils.book_new();
+    const largura = (linhas) => Object.keys(linhas[0] || {}).map((k) => ({ wch: Math.min(60, Math.max(k.length, ...linhas.map((l) => String(l[k] ?? '').length)) + 2) }));
+    const res = resumoExportacao(), tar = linhasExportacao();
+    const ws1 = XLSX.utils.json_to_sheet(res); ws1['!cols'] = largura(res);
+    const ws2 = tar.length ? XLSX.utils.json_to_sheet(tar) : XLSX.utils.aoa_to_sheet([['Nenhuma tarefa nesse dia.']]);
+    if (tar.length) { ws2['!cols'] = largura(tar); ws2['!autofilter'] = { ref: ws2['!ref'] }; }
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumo');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Tarefas');
+    XLSX.writeFile(wb, nomeArquivo('xlsx'));
+  } catch (e) { avisar(e.message, true); }
+  finally { b.disabled = false; }
+};
+
+$('#btn-pdf').onclick = async () => {
+  if (!relatorio) return;
+  const b = $('#btn-pdf'); b.disabled = true;
+  try {
+    await carregarLib('jspdf');
+    await carregarLib('autotable');
+    const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const cinza = [90, 102, 115];
+    doc.setFontSize(16); doc.text('Trallo - Relatório do dia', 40, 40);
+    doc.setFontSize(10); doc.setTextColor(...cinza);
+    doc.text(`${fmtDiaLongo(relatorio.dia)}  ·  gerado às ${fmtHora(relatorio.gerado_em)}`, 40, 58);
+    doc.setTextColor(0);
+    const res = resumoExportacao();
+    const colsRes = ['Pessoa', 'Tarefas no dia', 'Concluídas', 'Não concluídas', 'Atrasadas', 'Entraram atrasadas e saíram', 'Adiadas', 'Removidas', 'Tempo em processamento', 'Voltas'];
+    doc.autoTable({
+      startY: 72, head: [colsRes], body: res.map((r) => colsRes.map((c) => String(r[c]))),
+      styles: { fontSize: 9, cellPadding: 4 }, headStyles: { fillColor: [22, 58, 95] }, margin: { left: 40, right: 40 },
+    });
+    const tar = linhasExportacao();
+    const colsTar = ['Pessoa', 'Tarefa', 'Tipo', 'Situação', 'Início', 'Conclusão', 'Tempo no dia', 'Voltas', 'Observações e motivos'];
+    doc.autoTable({
+      startY: doc.lastAutoTable.finalY + 20,
+      head: [colsTar], body: tar.length ? tar.map((r) => colsTar.map((c) => String(r[c] ?? ''))) : [['Nenhuma tarefa nesse dia.', '', '', '', '', '', '', '', '']],
+      styles: { fontSize: 8.5, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+      headStyles: { fillColor: [22, 58, 95] },
+      columnStyles: { 0: { cellWidth: 62 }, 1: { cellWidth: 140 }, 2: { cellWidth: 44 }, 3: { cellWidth: 92 }, 4: { cellWidth: 40 }, 5: { cellWidth: 60 }, 6: { cellWidth: 62 }, 7: { cellWidth: 40 } },
+      didParseCell: (d) => {
+        if (d.section === 'body' && d.column.index === 3) {
+          const t = d.cell.raw || '';
+          if (/^Atrasada|^Não concluída/.test(t)) d.cell.styles.textColor = [200, 55, 45];
+          else if (/^Concluída/.test(t)) d.cell.styles.textColor = [35, 144, 95];
+        }
+      },
+      margin: { left: 40, right: 40 },
+    });
+    const n = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= n; i++) {
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...cinza);
+      doc.text(`Página ${i} de ${n}`, doc.internal.pageSize.getWidth() - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
+    }
+    doc.save(nomeArquivo('pdf'));
+  } catch (e) { avisar(e.message, true); }
+  finally { b.disabled = false; }
 };
 
 /* ------------------------- início ------------------------- */
