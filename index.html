@@ -181,6 +181,23 @@
     font-size: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.25); max-width: 90vw;
   }
   .aviso.erro { background: var(--late); color: #fff; }
+  #lembretes-raiz { position: fixed; bottom: 20px; right: 20px; z-index: 25; display: flex; flex-direction: column; gap: 10px; width: 340px; max-width: calc(100vw - 32px); }
+  .lembrete {
+    background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--doing);
+    border-radius: 12px; padding: 12px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.2); display: flex; gap: 10px; align-items: flex-start;
+    animation: entra .25s ease-out;
+  }
+  .lembrete.passou { border-left-color: var(--late); }
+  .lembrete .sino { font-size: 22px; line-height: 1; }
+  .lembrete .txt { flex: 1; }
+  .lembrete b { display: block; }
+  .lembrete span { color: var(--ink-2); font-size: 13px; }
+  @keyframes entra { from { transform: translateY(-8px); opacity: 0; } }
+  .chip-lembrete { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .chip-lembrete.on { color: var(--done); border-color: color-mix(in srgb, var(--done) 40%, var(--line)); }
+  .chip-lembrete.off { color: var(--late); border-color: color-mix(in srgb, var(--late) 40%, var(--line)); }
+  .card.destaque { outline: 3px solid var(--doing); outline-offset: 2px; }
+  .tag.sino { background: var(--muted-bg); }
   .status-rede { font-size: 12px; color: var(--ink-3); }
   .status-rede.off { color: var(--late); font-weight: 600; }
 
@@ -342,6 +359,7 @@
     <h1 id="quadro-titulo">Minhas tarefas</h1>
     <span class="data" id="quadro-data"></span>
     <button class="btn primary" id="btn-nova" type="button">+ Nova tarefa</button>
+    <button class="chip-lembrete hidden" id="chip-lembrete" type="button"></button>
     <div class="resumo" id="resumo"></div>
   </div>
   <div class="pessoas-resumo hidden" id="gestor-resumo"></div>
@@ -405,6 +423,7 @@
 
 <div id="modal-raiz"></div>
 <div id="aviso-raiz"></div>
+<div id="lembretes-raiz" aria-live="assertive"></div>
 
 <script>
 /* =====================================================================
@@ -554,6 +573,7 @@ function sair(expirou = false) {
   pararAtualizacao();
   if (tok && !expirou) rpc('qt_logout', { p_token: tok }).catch(() => {});
   $('#modal-raiz').innerHTML = '';
+  $('#lembretes-raiz').innerHTML = '';
   mostrarLogin();
   if (expirou) avisar('Sua sessão expirou. Entre de novo com seu PIN.', true);
 }
@@ -654,6 +674,7 @@ function mostrarQuadro() {
   $('#gestor-resumo').classList.toggle('hidden', !sessao.gestor);
   $('#quadro-titulo').textContent = sessao.gestor ? 'Quadro geral' : 'Minhas tarefas';
   marcarAba('quadro');
+  desenharChipLembrete();
   tarefas = []; desenharQuadro();
   if (sessao.gestor) carregarPessoas();
   carregar();
@@ -661,10 +682,12 @@ function mostrarQuadro() {
 }
 function iniciarAtualizacao() {
   pararAtualizacao();
-  timerAtualizar = setInterval(() => { if (!document.hidden && !$('#modal-raiz').innerHTML) carregar(); }, CONFIG.atualizarCadaMs);
+  timerAtualizar = setInterval(() => { if (!$('#modal-raiz').innerHTML) carregar(); }, CONFIG.atualizarCadaMs);
+  timerLembrete = setInterval(checarLembretes, 20000);
   timerRelogio = setInterval(atualizarCronometros, 1000);
 }
-function pararAtualizacao() { clearInterval(timerAtualizar); clearInterval(timerRelogio); }
+let timerLembrete = null;
+function pararAtualizacao() { clearInterval(timerAtualizar); clearInterval(timerRelogio); clearInterval(timerLembrete); }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && sessao) carregar(); });
 window.addEventListener('focus', () => { if (sessao) carregar(); });
 
@@ -675,6 +698,7 @@ async function carregar() {
     const r = await rpc('qt_quadro', { p_token: sessao.token });
     if (!sessao) return;
     tarefas = r.tarefas; hoje = r.hoje; buscadoEm = Date.now();
+    checarLembretes();
     if (!$('#tela-quadro').classList.contains('hidden')) desenharQuadro();
   } catch (e) {
     if (sessao) avisar(e.message, true);
@@ -698,6 +722,7 @@ function cartao(t) {
   if (t.adiada && !t.atrasada && t.status !== 'concluido') tags.push(`<span class="tag adiada" title="${esc(t.motivo_adiamento || '')}">Adiada de ${fmtDiaCurto(t.data_ref)}</span>`);
   tags.push(`<span class="tag">${t.tipo === 'fixa' ? 'Fixa' : 'Variada'}</span>`);
   if (t.voltas > 0) tags.push(`<span class="tag voltas">↺ voltou ${t.voltas}x</span>`);
+  if (t.notificar && t.horario && t.status === 'nao_processado') tags.push(`<span class="tag sino" title="Lembrete no computador">🔔 ${t.antecedencia_min} min antes</span>`);
   if (t.status === 'em_processamento') tags.push(`<span class="tag doing" data-cron="${t.id}">⏱ ${fmtDuracao(tempoAtual(t))}</span>`);
   else if (t.status === 'concluido') tags.push(`<span class="tag done">✓ ${fmtHora(t.concluida_em)} · ${fmtDuracao(t.tempo_seg)}</span>`);
   else if (t.tempo_seg > 0) tags.push(`<span class="tag tempo">⏱ ${fmtDuracao(t.tempo_seg)}</span>`);
@@ -1296,6 +1321,154 @@ $('#btn-pdf').onclick = async () => {
   } catch (e) { avisar(e.message, true); }
   finally { b.disabled = false; }
 };
+
+/* =====================================================================
+   LEMBRETES (notificação do Windows X minutos antes do horário)
+   Funcionam com a aba aberta, mesmo minimizada ou em segundo plano.
+   ===================================================================== */
+const temNotificacao = 'Notification' in window;
+function agoraSP() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+  return { dia: `${p.year}-${p.month}-${p.day}`, min: Number(p.hour) * 60 + Number(p.minute) };
+}
+// quais tarefas já avisaram hoje (guardado no navegador; some sozinho no dia seguinte)
+const avisadasMem = {};
+function lerAvisadas() {
+  const hojeSP = agoraSP().dia;
+  const g = guardar.ler('qt_lembretes');
+  const base = g && g.dia === hojeSP ? g : { dia: hojeSP, ids: [] };
+  return { ...base, ids: [...new Set([...base.ids, ...(avisadasMem[hojeSP] || [])])] };
+}
+function marcarAvisada(id) {
+  const a = lerAvisadas();
+  a.ids.push(id);
+  (avisadasMem[a.dia] = avisadasMem[a.dia] || []).push(id);
+  guardar.gravar('qt_lembretes', a);
+}
+
+function checarLembretes() {
+  if (!sessao || sessao.gestor || !tarefas.length) return;
+  const { dia, min } = agoraSP();
+  const ja = new Set(lerAvisadas().ids);
+  for (const t of tarefas) {
+    if (!t.notificar || !t.horario || t.status !== 'nao_processado' || t.data_ref !== dia || ja.has(t.id)) continue;
+    const [h, m] = t.horario.split(':').map(Number);
+    const alvo = h * 60 + m;
+    // janela: da antecedência até 1 hora depois do horário (cobre quem abriu o sistema atrasado)
+    if (min < alvo - (t.antecedencia_min || 0) || min > alvo + 60) continue;
+    marcarAvisada(t.id);
+    dispararLembrete(t, alvo - min);
+  }
+}
+
+let audioCtx = null;
+document.addEventListener('pointerdown', () => { if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} } }, { once: false });
+function bip() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    [0, 0.28].forEach((atraso, i) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = i ? 1046 : 784;
+      const t0 = audioCtx.currentTime + atraso;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.25);
+      o.connect(g).connect(audioCtx.destination); o.start(t0); o.stop(t0 + 0.26);
+    });
+  } catch {}
+}
+
+let tituloOriginal = document.title, piscarTimer = null;
+function piscarTitulo(texto) {
+  clearInterval(piscarTimer);
+  let on = false;
+  piscarTimer = setInterval(() => { document.title = (on = !on) ? texto : tituloOriginal; }, 1000);
+  const parar = () => { clearInterval(piscarTimer); document.title = tituloOriginal; };
+  window.addEventListener('focus', parar, { once: true });
+  setTimeout(parar, 120000);
+}
+
+function textoLembrete(t, faltam) {
+  if (faltam > 0) return `Às ${t.horario} · faltam ${faltam} min`;
+  if (faltam === 0) return `Agora, ${t.horario}`;
+  return `Era às ${t.horario} e ainda não foi iniciada`;
+}
+function dispararLembrete(t, faltam) {
+  const corpo = textoLembrete(t, faltam);
+  // 1) notificação do Windows
+  if (temNotificacao && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(`⏰ ${t.titulo}`, { body: corpo, tag: `trallo-${t.id}`, requireInteraction: true });
+      n.onclick = () => { window.focus(); destacarCartao(t.id); n.close(); };
+    } catch {}
+  }
+  // 2) aviso dentro da página (fica até alguém fechar) + som + título piscando
+  const raiz = $('#lembretes-raiz');
+  const el = document.createElement('div');
+  el.className = `lembrete ${faltam < 0 ? 'passou' : ''}`;
+  el.dataset.lembrete = t.id;
+  el.innerHTML = `<span class="sino">⏰</span><div class="txt"><b>${esc(t.titulo)}</b><span>${esc(corpo)}</span></div>
+    <button class="btn" type="button" data-ver>Ver</button><button class="link" type="button" data-ok aria-label="Fechar">✕</button>`;
+  el.querySelector('[data-ok]').onclick = () => el.remove();
+  el.querySelector('[data-ver]').onclick = () => { destacarCartao(t.id); el.remove(); };
+  raiz.appendChild(el);
+  bip();
+  piscarTitulo(`⏰ ${t.titulo}`);
+}
+function destacarCartao(id) {
+  const c = document.querySelector(`.card[data-id="${id}"]`);
+  if (!c) return;
+  c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  c.classList.add('destaque');
+  setTimeout(() => c.classList.remove('destaque'), 4000);
+}
+
+/* ---------- botão de ativar lembretes ---------- */
+function desenharChipLembrete() {
+  const chip = $('#chip-lembrete');
+  const mostrar = sessao && !sessao.gestor && temNotificacao;
+  chip.classList.toggle('hidden', !mostrar);
+  if (!mostrar) return;
+  const p = Notification.permission;
+  chip.className = `chip-lembrete ${p === 'granted' ? 'on' : p === 'denied' ? 'off' : ''}`;
+  chip.textContent = p === 'granted' ? '🔔 Lembretes ligados' : p === 'denied' ? '🔕 Lembretes bloqueados' : '🔔 Ativar lembretes';
+}
+$('#chip-lembrete').onclick = async () => {
+  const p = Notification.permission;
+  if (p === 'default') {
+    try { await Notification.requestPermission(); } catch {}
+    desenharChipLembrete();
+    if (Notification.permission === 'granted') { avisar('Lembretes ligados neste computador.'); lembreteTeste(); }
+    else if (Notification.permission === 'denied') explicarBloqueio();
+    return;
+  }
+  if (p === 'denied') return explicarBloqueio();
+  const ok = await formulario({
+    titulo: 'Lembretes ligados', campos: [], botao: 'Testar agora',
+    texto: 'Os lembretes aparecem no canto da tela do Windows, com som, nos horários das tarefas que têm lembrete. Deixe esta aba aberta (pode ficar minimizada).',
+    enviar: async () => true,
+  });
+  if (ok) lembreteTeste();
+};
+function lembreteTeste() {
+  dispararLembrete({ id: 'teste', titulo: 'Teste de lembrete', horario: '--:--' }, 0);
+  const el = document.querySelector('[data-lembrete="teste"] span:not(.sino)');
+  if (el) el.textContent = 'Se apareceu também no canto do Windows, está tudo certo.';
+}
+function explicarBloqueio() {
+  formulario({
+    titulo: 'Lembretes bloqueados neste navegador', campos: [], botao: 'Entendi',
+    html: `<p>O navegador está bloqueando as notificações deste site. Para liberar:</p>
+      <ol style="margin:0 0 6px;padding-left:20px;line-height:1.7;color:var(--ink-2);font-size:14px">
+        <li>Clique no ícone <b>à esquerda do endereço</b> do site, lá em cima.</li>
+        <li>Em <b>Notificações</b>, escolha <b>Permitir</b>.</li>
+        <li>Aperte <b>F5</b> para recarregar.</li>
+      </ol>
+      <p style="margin-top:8px">Mesmo bloqueado, o aviso aparece dentro do Trallo com som quando a aba estiver aberta.</p>`,
+    ler: () => ({}), enviar: async () => true,
+  });
+}
 
 /* ------------------------- início ------------------------- */
 if (sessao && sessao.token) mostrarQuadro();
